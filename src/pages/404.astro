@@ -1,0 +1,56 @@
+---
+import { getCollection } from "astro:content";
+import PostCard from "@/components/PostCard.astro";
+import SectionHead from "@/components/SectionHead.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { visiblePosts } from "@/lib/posts";
+
+const allPosts = visiblePosts(await getCollection("posts"));
+const suggestions = allPosts.slice(0, 3);
+---
+
+<BaseLayout title="Page not found" description="The page you requested could not be found." noindex>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <div class="container">
+      <div class="notfound">
+        <h1 class="txt-display">This page has been rearranged.</h1>
+        <p class="txt-lead txt-dim">
+          The piece may have been renamed, or the address mistyped. Try the archive, or start again
+          from the front page.
+        </p>
+        <div class="notfound__actions">
+          <a class="btn" href="/">Back to the front page</a>
+          <a class="btn btn--light" href="/posts/">Browse all posts</a>
+        </div>
+      </div>
+    </div>
+
+    <section class="container section-bottom" aria-labelledby="notfound-suggestions">
+      <SectionHead title="Recently published" id="notfound-suggestions" />
+      <div class="grid-cards grid-cards--3">
+        {suggestions.map((post) => <PostCard post={post} eager />)}
+      </div>
+    </section>
+  </main>
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .notfound {
+    display: grid;
+    justify-items: start;
+    gap: 1.25rem;
+    max-width: 44rem;
+    padding-block: 3rem 4rem;
+  }
+
+  .notfound__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+</style>

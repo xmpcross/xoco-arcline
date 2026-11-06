@@ -1,0 +1,100 @@
+---
+import { Image } from "astro:assets";
+import CategoryTag from "@/components/CategoryTag.astro";
+import PostMeta from "@/components/ui/PostMeta.astro";
+import { postHref, type Post } from "@/lib/posts";
+
+interface Props {
+  post: Post;
+  /**
+   * `grid` — cover above the copy (the default)
+   * `wide` — same card with a tall fixed-height cover, for the carousel
+   * `row`  — cover beside the copy, for editorial archives
+   */
+  variant?: "grid" | "wide" | "row";
+  /** Loads the cover eagerly — set it on cards that render above the fold. */
+  eager?: boolean;
+  /** Draws the category as a chip over the cover. */
+  showCategory?: boolean;
+  showExcerpt?: boolean;
+  /** Off for dense rows — related posts run title-only. */
+  showMeta?: boolean;
+  /** Requests denser source sizes for larger cropped thumbnails. */
+  imageSize?: "default" | "related";
+  headingLevel?: "h2" | "h3";
+  class?: string;
+}
+
+const {
+  post,
+  variant = "grid",
+  eager = false,
+  showCategory = false,
+  showExcerpt = false,
+  showMeta = true,
+  imageSize = "default",
+  headingLevel = "h3",
+  class: className = "",
+} = Astro.props;
+
+const href = postHref(post);
+const { title, excerpt, cover } = post.data;
+const Heading = headingLevel;
+const media = {
+  grid: {
+    widths: [320, 480, 640, 960],
+    sizes: "(min-width: 64rem) 25rem, (min-width: 40rem) 45vw, calc(100vw - 2.5rem)",
+  },
+  wide: {
+    widths: [480, 720, 1080, 1500],
+    sizes: "(min-width: 80rem) 46.75rem, 80vw",
+  },
+  row: {
+    widths: [360, 540, 720, 900],
+    sizes: "(min-width: 64rem) 26rem, (min-width: 48rem) 45vw, calc(100vw - 2.5rem)",
+  },
+}[variant];
+
+const image = imageSize === "related"
+  ? {
+      widths: [640, 960, 1280, 1600, 2000],
+      sizes: "(min-width: 85rem) 39.625rem, (min-width: 40rem) calc((100vw - 5.75rem) / 2), calc((100vw - 3.25rem) / 2)",
+    }
+  : media;
+---
+
+<article
+  class:list={[
+    "card zoom-host",
+    variant === "wide" && "card--wide",
+    variant === "row" && "card--row",
+    className,
+  ]}
+>
+  <div class="card__media">
+    <div class:list={["media", variant === "grid" && "media--card", variant === "row" && "media--card"]}>
+      <Image
+        src={cover.src}
+        alt={cover.alt}
+        widths={image.widths}
+        sizes={image.sizes}
+        loading={eager ? "eager" : "lazy"}
+        fetchpriority={eager ? "high" : "auto"}
+        decoding="async"
+      />
+    </div>
+    {
+      showCategory && (
+        <div class="card__chips chip-row">
+          <CategoryTag category={post.data.category} />
+        </div>
+      )
+    }
+  </div>
+  <a class="card__link" href={href} aria-label={title}></a>
+  <div class="card__body">
+    <Heading class:list={["card__title", variant === "row" ? "txt-h2" : "txt-h3"]}>{title}</Heading>
+    {showExcerpt && <p class="txt-s txt-dim line-clamp-2">{excerpt}</p>}
+    {showMeta && <PostMeta post={post} class="card__meta" />}
+  </div>
+</article>

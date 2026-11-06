@@ -1,0 +1,122 @@
+---
+import { getCollection } from "astro:content";
+import type { GetStaticPaths, Page } from "astro";
+import PageHeader from "@/components/PageHeader.astro";
+import Pagination from "@/components/Pagination.astro";
+import PostCard from "@/components/PostCard.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SubscribeBand from "@/components/SubscribeBand.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { categoryLayouts, categoryMeta } from "@/config/categories";
+import {
+  categories,
+  categoryFromSlug,
+  categorySlug,
+  formatDate,
+  getByCategory,
+  visiblePosts,
+  withTrailingSlash,
+  type Category,
+  type Post,
+} from "@/lib/posts";
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const allPosts = visiblePosts(await getCollection("posts"));
+
+  return categories.flatMap((category) => {
+    const posts = getByCategory(allPosts, category);
+
+    return paginate(posts, {
+      pageSize: 12,
+      params: { category: categorySlug(category) },
+      props: { category, allPosts },
+    });
+  });
+}) satisfies GetStaticPaths;
+
+interface Props {
+  category: Category;
+  allPosts: Post[];
+  page: Page<Post>;
+}
+
+const { category, allPosts, page } = Astro.props;
+const categoryFromUrl = categoryFromSlug(Astro.params.category ?? "");
+const cat = categoryFromUrl ?? category;
+const posts = page.data;
+const layout = categoryLayouts[cat];
+const lead = layout === "featured" && page.currentPage === 1 ? posts[0] : undefined;
+const remaining = lead ? posts.slice(1) : posts;
+const title = page.currentPage === 1 ? `${cat} posts` : `${cat} posts - Page ${page.currentPage}`;
+const description = categoryMeta[cat].description;
+const prevUrl = withTrailingSlash(page.url.prev);
+const nextUrl = withTrailingSlash(page.url.next);
+const latest = getByCategory(allPosts, cat)[0];
+const meta = [
+  `${page.total} ${page.total === 1 ? "post" : "posts"}`,
+  latest ? `Latest ${formatDate(latest.data.date)}` : null,
+]
+  .filter(Boolean)
+  .join(" · ");
+---
+
+<BaseLayout title={title} description={description} prevUrl={prevUrl} nextUrl={nextUrl}>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <div class="container">
+      <PageHeader title={cat} description={description} meta={meta} />
+    </div>
+
+    <section class="container section-bottom">
+      {
+        lead && (
+          <div class="category-lead">
+            <PostCard post={lead} variant="row" headingLevel="h2" showExcerpt showCategory eager />
+          </div>
+        )
+      }
+
+      {
+        layout === "list" ? (
+          <div class="stack-rows">
+            {posts.map((post, index) => (
+              <PostCard
+                post={post}
+                variant="row"
+                headingLevel="h2"
+                showExcerpt
+                eager={index < 2}
+              />
+            ))}
+          </div>
+        ) : (
+          <div class="grid-cards grid-cards--3">
+            {remaining.map((post, index) => (
+              <PostCard post={post} headingLevel="h2" eager={!lead && index < 3} />
+            ))}
+          </div>
+        )
+      }
+
+      {posts.length === 0 && <p class="txt-lead txt-dim">More posts are coming soon.</p>}
+
+      <Pagination
+        prevUrl={prevUrl}
+        nextUrl={nextUrl}
+        currentPage={page.currentPage}
+        lastPage={page.lastPage}
+        label={`${cat} pagination`}
+      />
+    </section>
+
+    <SubscribeBand id="category-subscribe" />
+  </main>
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .category-lead {
+    margin-bottom: 3rem;
+  }
+</style>

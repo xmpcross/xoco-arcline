@@ -1,0 +1,74 @@
+---
+import { getCollection } from "astro:content";
+import Carousel from "@/components/Carousel.astro";
+import CategoryShelves from "@/components/CategoryShelves.astro";
+import PostCard from "@/components/PostCard.astro";
+import SectionHead from "@/components/SectionHead.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SubscribeBand from "@/components/SubscribeBand.astro";
+import TagTiles from "@/components/TagTiles.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+import {
+  excludePosts,
+  getCategoryShelves,
+  getFeatured,
+  getTopTags,
+  visiblePosts,
+} from "@/lib/posts";
+
+const allPosts = visiblePosts(await getCollection("posts"));
+const featured = getFeatured(allPosts, 6);
+const latest = excludePosts(allPosts, featured).slice(0, 9);
+const shelves = getCategoryShelves(allPosts);
+const topTags = getTopTags(allPosts, 5);
+---
+
+<BaseLayout>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <section class="container intro">
+      <div class="intro__inner">
+        <h1 class="txt-display">{siteConfig.intro}</h1>
+      </div>
+    </section>
+
+    {
+      featured.length > 0 && (
+        <section class="section-bottom" aria-labelledby="home-featured">
+          <Carousel title="Featured posts" label="Featured posts" id="home-featured">
+            {featured.map((post, index) => (
+              <PostCard post={post} variant="wide" showCategory eager={index < 2} />
+            ))}
+          </Carousel>
+        </section>
+      )
+    }
+
+    <section class="container section-bottom reveal" aria-labelledby="home-latest">
+      <SectionHead title="Latest posts" id="home-latest" />
+      <div class="grid-cards grid-cards--3">
+        {latest.map((post) => <PostCard post={post} headingLevel="h3" />)}
+      </div>
+      <div class="home-more">
+        <a class="btn" href="/posts/">Browse all posts</a>
+      </div>
+    </section>
+
+    <CategoryShelves shelves={shelves} />
+
+    <TagTiles tags={topTags} />
+
+    <SubscribeBand />
+  </main>
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .home-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 4rem;
+  }
+</style>

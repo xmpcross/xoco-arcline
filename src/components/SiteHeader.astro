@@ -1,0 +1,702 @@
+---
+import Icon from "@/components/ui/Icon.astro";
+import { primaryNavigation, siteConfig } from "@/config/site";
+import { formatDate, postHref, visiblePosts, type Post } from "@/lib/posts";
+
+interface Props {
+  posts: Post[];
+}
+
+const currentPath = Astro.url.pathname;
+const allPosts = visiblePosts(Astro.props.posts);
+/**
+ * Inlined so the palette can render its first list before `/search-index.json`
+ * has been fetched — and still work if that request never lands.
+ */
+const searchFallback = allPosts.slice(0, 8).map((post) => ({
+  title: post.data.title,
+  excerpt: post.data.excerpt,
+  href: postHref(post),
+  category: post.data.category,
+  author: post.data.author.name,
+  tags: post.data.tags,
+  date: formatDate(post.data.date),
+}));
+
+const isCurrentPath = (href: string) =>
+  currentPath === href || (href !== "/" && currentPath.startsWith(href));
+---
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a href="/" class="wordmark" aria-label={`${siteConfig.name} home`}>
+      {siteConfig.name}<span class="wordmark__dot" aria-hidden="true">.</span>
+    </a>
+
+    <div class="header-actions">
+      <button
+        type="button"
+        class="theme-switch"
+        role="switch"
+        aria-checked="false"
+        aria-label="Switch to dark mode"
+        data-theme-toggle
+      >
+        <span class="theme-switch__knob" aria-hidden="true">
+          <Icon name="sun" class="theme-icon-sun" size={12} />
+          <Icon name="moon" class="theme-icon-moon" size={12} />
+        </span>
+      </button>
+      <button
+        type="button"
+        class="burger"
+        aria-controls="nav-sheet"
+        aria-expanded="false"
+        data-sheet-toggle
+      >
+        <span></span>
+        <span></span>
+        <span class="sr-only">Open navigation menu</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div id="nav-sheet" class="nav-sheet" role="dialog" aria-modal="true" aria-label="Navigation menu" hidden>
+  <button class="nav-sheet__backdrop" tabindex="-1" aria-hidden="true" data-sheet-close></button>
+
+  <div class="nav-sheet__panel">
+    <div class="nav-sheet__top">
+      <button type="button" class="icon-btn" data-sheet-close aria-label="Close navigation menu">
+        <Icon name="close" size={20} />
+      </button>
+    </div>
+
+    <div class="nav-sheet__inner">
+      <nav aria-label="Primary">
+        <ul class="nav-sheet__links">
+          {
+            primaryNavigation.map((item) => (
+              <li>
+                <a
+                  class="nav-sheet__link"
+                  href={item.href}
+                  aria-current={isCurrentPath(item.href) ? "page" : undefined}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      <div class="nav-sheet__utils">
+        <a class="btn" href="/#subscribe">Subscribe</a>
+        <a class="nav-sheet__secondary" href="/posts/">All posts</a>
+      </div>
+    </div>
+
+    <div>
+      <button
+        type="button"
+        class="nav-sheet__search"
+        data-search-toggle
+        aria-haspopup="dialog"
+        aria-controls="site-search-dialog"
+      >
+        Search
+        <Icon name="search" size={18} />
+      </button>
+    </div>
+  </div>
+</div>
+
+<dialog
+  id="site-search-dialog"
+  class="search-dialog"
+  aria-labelledby="site-search-title"
+  aria-describedby="site-search-description"
+  data-search-dialog
+>
+  <div class="search-panel">
+    <form action="/search/" method="get" role="search" aria-label="Site search">
+      <div class="search-panel__field">
+        <Icon name="search" size={20} class="search-panel__icon" />
+        <div class="min-w-0 flex-1">
+          <h2 id="site-search-title" class="sr-only">Search {siteConfig.name}</h2>
+          <label class="sr-only" for="site-search-input">Search articles</label>
+          <input
+            id="site-search-input"
+            name="q"
+            type="search"
+            class="search-panel__input"
+            placeholder="Search articles, hotels, tags..."
+            autocomplete="off"
+            enterkeyhint="search"
+            data-search-input
+          />
+        </div>
+        <button type="button" class="icon-btn" aria-label="Close search" data-search-close>
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+
+      <div class="search-panel__body">
+        <div class="search-panel__heading">
+          <p class="txt-eyebrow" data-search-heading>Latest articles</p>
+          <p id="site-search-description" class="txt-cap txt-dim" data-search-summary aria-live="polite">
+            Start typing to search the archive.
+          </p>
+        </div>
+        <div class="search-panel__results" data-search-results></div>
+      </div>
+
+      <div class="search-panel__footer" aria-hidden="true">
+        <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+        <span><kbd>↵</kbd> Open</span>
+        <span class="ml-auto hidden sm:inline">Search all with Enter</span>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<script is:inline type="application/json" id="site-search-fallback" set:html={JSON.stringify(searchFallback)} />
+
+<script is:inline>
+  (() => {
+    const searchDialog = document.querySelector("[data-search-dialog]");
+    const searchToggle = document.querySelector("[data-search-toggle]");
+    const searchClose = searchDialog?.querySelector("[data-search-close]");
+    const searchInput = searchDialog?.querySelector("[data-search-input]");
+    const searchResults = searchDialog?.querySelector("[data-search-results]");
+    const searchHeading = searchDialog?.querySelector("[data-search-heading]");
+    const searchSummary = searchDialog?.querySelector("[data-search-summary]");
+    const sheet = document.getElementById("nav-sheet");
+    const sheetToggle = document.querySelector("[data-sheet-toggle]");
+    let siteSearchData = [];
+    let siteSearchDataPromise;
+
+    const siteSearchFallback = JSON.parse(
+      document.getElementById("site-search-fallback")?.textContent || "[]",
+    );
+
+    const loadSearchData = async () => {
+      if (siteSearchData.length > 0) return siteSearchData;
+
+      siteSearchDataPromise ??= fetch("/search-index.json")
+        .then((response) => {
+          if (!response.ok) throw new Error("Search index unavailable");
+          return response.json();
+        })
+        .then((items) => {
+          siteSearchData = Array.isArray(items) ? items : siteSearchFallback;
+          return siteSearchData;
+        })
+        .catch(() => {
+          siteSearchData = siteSearchFallback;
+          return siteSearchData;
+        });
+
+      return siteSearchDataPromise;
+    };
+
+    const escapeHtml = (value) =>
+      String(value).replace(
+        /[&<>"']/g,
+        (character) =>
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[character],
+      );
+
+    const rankSearchItem = (item, query) => {
+      const title = item.title.toLowerCase();
+      const category = item.category.toLowerCase();
+      const tags = (item.tags || []).join(" ").toLowerCase();
+      const supportingText = [item.excerpt, item.author].join(" ").toLowerCase();
+
+      if (title.startsWith(query)) return 0;
+      if (title.includes(query)) return 1;
+      if (`${category} ${tags}`.includes(query)) return 2;
+      if (supportingText.includes(query)) return 3;
+      return Number.POSITIVE_INFINITY;
+    };
+
+    const searchResultMarkup = (item) => `
+      <a href="${escapeHtml(item.href)}" class="search-result">
+        <span class="search-result__copy">
+          <span class="search-result__title">${escapeHtml(item.title)}</span>
+          <span class="search-result__meta">
+            <span>${escapeHtml(item.category)}</span>
+            <span aria-hidden="true">·</span>
+            <span>${escapeHtml(item.date)}</span>
+          </span>
+        </span>
+        <svg aria-hidden="true" class="search-result__arrow" viewBox="0 0 24 24" fill="none">
+          <path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </a>
+    `;
+
+    const renderSearchResults = async () => {
+      if (!searchInput || !searchResults || !searchHeading || !searchSummary) return;
+
+      const rawQuery = searchInput.value.trim();
+      const query = rawQuery.toLowerCase();
+      const items = await loadSearchData();
+
+      if (searchInput.value.trim().toLowerCase() !== query) return;
+
+      if (!query) {
+        searchHeading.textContent = "Latest articles";
+        searchSummary.textContent = "Start typing to search the archive.";
+        searchResults.innerHTML = items.slice(0, 5).map(searchResultMarkup).join("");
+        return;
+      }
+
+      const matches = items
+        .map((item) => ({ item, rank: rankSearchItem(item, query) }))
+        .filter(({ rank }) => Number.isFinite(rank))
+        .sort((a, b) => a.rank - b.rank)
+        .slice(0, 7)
+        .map(({ item }) => item);
+
+      searchHeading.textContent = "Search results";
+      searchSummary.textContent = `${matches.length} ${matches.length === 1 ? "result" : "results"} for “${rawQuery}”.`;
+
+      if (matches.length === 0) {
+        searchResults.innerHTML = `
+          <div class="search-empty">
+            <span class="search-empty__icon" aria-hidden="true">?</span>
+            <div>
+              <p class="txt-h4">No articles found</p>
+              <p class="txt-cap txt-dim">Try a title, hotel, tag, or author.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      searchResults.innerHTML = matches.map(searchResultMarkup).join("");
+    };
+
+    /* Navigation sheet ---------------------------------------------------- */
+
+    let inertedElements = [];
+    const focusableSelector =
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    const setSheetOpen = (open) => {
+      if (!sheet || !sheetToggle) return;
+
+      sheet.hidden = !open;
+      sheetToggle.setAttribute("aria-expanded", String(open));
+      document.documentElement.classList.toggle("has-open-sheet", open);
+
+      if (open) {
+        inertedElements = Array.from(document.body.children).filter(
+          (element) => element !== sheet && !element.inert,
+        );
+        inertedElements.forEach((element) => {
+          element.inert = true;
+        });
+        window.requestAnimationFrame(() => {
+          sheet.querySelector("[data-sheet-close]:not([tabindex])")?.focus();
+        });
+      } else {
+        inertedElements.forEach((element) => {
+          element.inert = false;
+        });
+        inertedElements = [];
+      }
+    };
+
+    sheetToggle?.addEventListener("click", () => {
+      setSheetOpen(sheetToggle.getAttribute("aria-expanded") !== "true");
+    });
+
+    sheet?.querySelectorAll("[data-sheet-close]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setSheetOpen(false);
+        sheetToggle?.focus();
+      });
+    });
+
+    sheet?.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => setSheetOpen(false));
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (!sheet || sheet.hidden) return;
+
+      if (event.key === "Escape") {
+        setSheetOpen(false);
+        sheetToggle?.focus();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(sheet.querySelectorAll(focusableSelector)).filter(
+        (element) => element.offsetParent !== null,
+      );
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    /* Search palette ------------------------------------------------------ */
+
+    const openSearch = () => {
+      if (!searchDialog || !searchInput || typeof searchDialog.showModal !== "function") return;
+      // Two stacked modals would fight over focus, so the sheet steps aside.
+      if (sheet && !sheet.hidden) setSheetOpen(false);
+      if (!searchDialog.open) searchDialog.showModal();
+      document.documentElement.classList.add("has-open-sheet");
+      void renderSearchResults();
+      window.requestAnimationFrame(() => searchInput.focus());
+    };
+
+    const closeSearch = () => {
+      if (searchDialog?.open) searchDialog.close();
+    };
+
+    searchToggle?.addEventListener("click", (event) => {
+      if (!searchDialog || typeof searchDialog.showModal !== "function") return;
+      event.preventDefault();
+      openSearch();
+    });
+
+    searchClose?.addEventListener("click", closeSearch);
+
+    searchDialog?.addEventListener("close", () => {
+      document.documentElement.classList.remove("has-open-sheet");
+      sheetToggle?.focus();
+    });
+
+    searchDialog?.addEventListener("click", (event) => {
+      if (event.target === searchDialog) closeSearch();
+    });
+
+    // A native modal already closes on Escape, but `input[type="search"]`
+    // swallows the first press to clear itself — so the reader has to hit it
+    // twice. Close on the first press instead.
+    searchDialog?.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeSearch();
+    });
+
+    searchInput?.addEventListener("input", () => {
+      void renderSearchResults();
+    });
+
+    searchInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowDown") return;
+      const firstResult = searchResults?.querySelector("a");
+      if (!firstResult) return;
+      event.preventDefault();
+      firstResult.focus();
+    });
+
+    searchResults?.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+      const links = Array.from(searchResults.querySelectorAll("a"));
+      const currentIndex = links.indexOf(document.activeElement);
+      if (currentIndex === -1) return;
+
+      event.preventDefault();
+      if (event.key === "ArrowDown") {
+        (links[currentIndex + 1] || links[0])?.focus();
+      } else if (currentIndex === 0) {
+        searchInput?.focus();
+      } else {
+        links[currentIndex - 1]?.focus();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      const target = event.target;
+      const isEditing =
+        target instanceof HTMLElement &&
+        (target.matches("input, textarea, select") || target.isContentEditable);
+      const isCommandShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+      const isSlashShortcut =
+        event.key === "/" && !isEditing && !event.metaKey && !event.ctrlKey && !event.altKey;
+
+      if (!isCommandShortcut && !isSlashShortcut) return;
+      event.preventDefault();
+
+      if (searchDialog?.open && isCommandShortcut) closeSearch();
+      else openSearch();
+    });
+  })();
+</script>
+
+<style>
+  .nav-sheet__secondary {
+    color: var(--ink-dim);
+    font-size: var(--fs-body);
+    font-weight: var(--weight-title);
+    letter-spacing: var(--ls-body);
+    transition: color 0.15s ease;
+  }
+
+  .nav-sheet__secondary:hover {
+    color: var(--ink);
+  }
+
+  /* Command palette ----------------------------------------------------- */
+
+  .search-dialog {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    overflow-y: auto;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    padding: clamp(0.75rem, 9vh, 6rem) 1rem 1rem;
+  }
+
+  .search-dialog[open] {
+    display: grid;
+    grid-template-columns: minmax(0, 40rem);
+    align-items: start;
+    justify-content: center;
+  }
+
+  .search-dialog::backdrop {
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .search-panel {
+    width: 100%;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: 0 30px 80px rgb(0 0 0 / 0.24);
+  }
+
+  .search-dialog[open] .search-panel {
+    animation: search-panel-in 200ms var(--ease-out);
+  }
+
+  .search-panel__field {
+    display: flex;
+    min-height: 4rem;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--line);
+    padding-inline: 1.25rem;
+  }
+
+  .search-panel__icon {
+    flex: 0 0 auto;
+    color: var(--ink-dim);
+  }
+
+  .search-panel__input {
+    width: 100%;
+    height: 4rem;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+    padding: 0;
+    font-size: var(--fs-lead);
+    letter-spacing: var(--ls-body);
+  }
+
+  .search-panel__input::placeholder {
+    color: var(--ink-dim);
+  }
+
+  .search-panel__input::-webkit-search-cancel-button {
+    display: none;
+    appearance: none;
+  }
+
+  .search-panel__body {
+    max-height: min(60vh, 28rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.75rem;
+  }
+
+  .search-panel__heading {
+    display: flex;
+    min-height: 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0.75rem 0.5rem;
+  }
+
+  .search-panel__results {
+    display: grid;
+    gap: 0.125rem;
+  }
+
+  /* `:global` is required: these rows are injected by the script above, so they
+     never receive this component's scoping attribute. */
+  :global(.search-result) {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: var(--radius-md);
+    padding: 0.75rem 0.875rem;
+    color: var(--ink);
+    transition: background-color 0.15s ease;
+  }
+
+  :global(.search-result:hover),
+  :global(.search-result:focus-visible) {
+    background: var(--page);
+    outline: none;
+  }
+
+  :global(.search-result__copy) {
+    min-width: 0;
+  }
+
+  :global(.search-result__title) {
+    display: block;
+    overflow: hidden;
+    font-size: var(--fs-body);
+    font-weight: var(--weight-title);
+    letter-spacing: var(--ls-title);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.search-result__meta) {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+    color: var(--ink-dim);
+    font-size: var(--fs-cap);
+  }
+
+  :global(.search-result__arrow) {
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 auto;
+    color: var(--ink-dim);
+    opacity: 0;
+    transform: translateX(-0.25rem);
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease;
+  }
+
+  :global(.search-result:hover .search-result__arrow),
+  :global(.search-result:focus-visible .search-result__arrow) {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  :global(.search-empty) {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 2rem 0.875rem;
+  }
+
+  :global(.search-empty__icon) {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: var(--radius-pill);
+    background: var(--chip);
+    color: var(--ink-dim);
+    font-family: var(--font-mono);
+    font-weight: 600;
+  }
+
+  .search-panel__footer {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border-top: 1px solid var(--line);
+    padding: 0.65rem 1.25rem;
+    color: var(--ink-dim);
+    font-size: var(--fs-cap);
+  }
+
+  .search-panel__footer span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .search-panel__footer kbd {
+    display: inline-grid;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    place-items: center;
+    border-radius: 0.3rem;
+    background: var(--chip);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+  }
+
+  @keyframes search-panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.5rem) scale(0.99);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (max-width: 39.99rem) {
+    .search-dialog {
+      padding: 0.75rem;
+    }
+
+    .search-panel__field {
+      min-height: 3.5rem;
+      padding-inline: 1rem;
+    }
+
+    .search-panel__input {
+      height: 3.5rem;
+      font-size: var(--fs-body);
+    }
+
+    .search-panel__body {
+      max-height: calc(100dvh - 8rem);
+    }
+  }
+</style>

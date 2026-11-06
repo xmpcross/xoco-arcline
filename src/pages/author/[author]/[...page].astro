@@ -1,0 +1,100 @@
+---
+import { getCollection } from "astro:content";
+import type { GetStaticPaths, Page } from "astro";
+import Pagination from "@/components/Pagination.astro";
+import PostCard from "@/components/PostCard.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SubscribeBand from "@/components/SubscribeBand.astro";
+import Avatar from "@/components/ui/Avatar.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+import { getAllAuthors, visiblePosts, withTrailingSlash, type Post } from "@/lib/posts";
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const allPosts = visiblePosts(await getCollection("posts"));
+
+  // `getAllAuthors` already groups the visible posts newest-first, so each
+  // author's own list is what gets paginated.
+  return getAllAuthors(allPosts).flatMap((author) =>
+    paginate(author.posts, {
+      pageSize: 12,
+      params: { author: author.slug },
+      props: { author, allPosts },
+    }),
+  );
+}) satisfies GetStaticPaths;
+
+interface Props {
+  author: { slug: string; name: string; role: string; posts: Post[] };
+  allPosts: Post[];
+  page: Page<Post>;
+}
+
+const { author, allPosts, page } = Astro.props;
+const title =
+  page.currentPage === 1
+    ? `${author.name} articles`
+    : `${author.name} articles - Page ${page.currentPage}`;
+const prevUrl = withTrailingSlash(page.url.prev);
+const nextUrl = withTrailingSlash(page.url.next);
+---
+
+<BaseLayout
+  title={title}
+  description={`Articles by ${author.name}, ${author.role}, on ${siteConfig.name}.`}
+  prevUrl={prevUrl}
+  nextUrl={nextUrl}
+>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <div class="container">
+      <header class="page-header author-hero">
+        <Avatar name={author.name} size="xl" />
+        <div class="author-hero__body">
+          <h1 class="txt-h1">{author.name}</h1>
+          <p class="txt-lead txt-dim">{author.role}</p>
+          <p class="txt-s txt-dim">
+            {page.total} {page.total === 1 ? "article" : "articles"}
+            {page.lastPage > 1 && ` · Page ${page.currentPage} of ${page.lastPage}`}
+          </p>
+        </div>
+      </header>
+    </div>
+
+    <section class="container section-bottom">
+      <div class="grid-cards grid-cards--3">
+        {
+          page.data.map((post, index) => (
+            <PostCard post={post} headingLevel="h2" eager={index < 3} />
+          ))
+        }
+      </div>
+      <Pagination
+        prevUrl={prevUrl}
+        nextUrl={nextUrl}
+        currentPage={page.currentPage}
+        lastPage={page.lastPage}
+        label={`${author.name} pagination`}
+      />
+    </section>
+
+    <SubscribeBand id="author-subscribe" />
+  </main>
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .author-hero {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+
+  .author-hero__body {
+    display: grid;
+    justify-items: start;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+</style>

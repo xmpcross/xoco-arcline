@@ -1,0 +1,168 @@
+---
+import type { AstroComponentFactory } from "astro/runtime/server/index.js";
+import { siteConfig } from "@/config/site";
+import "@/styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  type?: "website" | "article";
+  noindex?: boolean;
+  prevUrl?: string;
+  nextUrl?: string;
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
+}
+
+const {
+  title = siteConfig.title,
+  description = siteConfig.description,
+  image = siteConfig.socialImage,
+  type = "website",
+  noindex = false,
+  prevUrl,
+  nextUrl,
+  structuredData,
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, siteConfig.siteUrl).toString();
+const absoluteImage = new URL(image, siteConfig.siteUrl).toString();
+const pageTitle = title === siteConfig.title ? title : `${title} | ${siteConfig.name}`;
+const defaultStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: siteConfig.name,
+  url: siteConfig.siteUrl,
+  description: siteConfig.description,
+  publisher: {
+    "@type": "Organization",
+    name: siteConfig.authorName,
+  },
+};
+const schema = structuredData ?? defaultStructuredData;
+
+// Optional: renders nothing once the file is deleted.
+const BuyButton = Object.values(
+  import.meta.glob<{ default: AstroComponentFactory }>("../components/BuyButton.astro", {
+    eager: true,
+  }),
+)[0]?.default;
+---
+
+<!doctype html>
+<html lang={siteConfig.language} data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Both weights are on screen above the fold: 400 sets the headline, 500 the controls. -->
+    <link rel="preload" href="/fonts/be-vietnam-pro/BeVietnamPro-400-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/be-vietnam-pro/BeVietnamPro-500-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+    {prevUrl && <link rel="prev" href={new URL(prevUrl, siteConfig.siteUrl).toString()} />}
+    {nextUrl && <link rel="next" href={new URL(nextUrl, siteConfig.siteUrl).toString()} />}
+    <link rel="alternate" type="application/rss+xml" title={`${siteConfig.name} RSS`} href={new URL("/rss.xml", siteConfig.siteUrl).toString()} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <meta property="og:locale" content={siteConfig.locale} />
+    <meta property="og:type" content={type} />
+    <meta property="og:site_name" content={siteConfig.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={absoluteImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={absoluteImage} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
+    <script is:inline>
+      (() => {
+        const storageKey = "arcline-theme";
+        const root = document.documentElement;
+        const themePreference = window.matchMedia("(prefers-color-scheme: dark)");
+        let storedTheme;
+
+        try {
+          storedTheme = localStorage.getItem(storageKey);
+        } catch {
+          storedTheme = null;
+        }
+
+        const updateThemeButtons = (theme) => {
+          const isDark = theme === "dark";
+          document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+            button.setAttribute("aria-checked", String(isDark));
+            button.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+          });
+        };
+
+        const setTheme = (theme, persist = false) => {
+          root.dataset.theme = theme;
+          if (persist) {
+            storedTheme = theme;
+            try {
+              localStorage.setItem(storageKey, theme);
+            } catch {}
+          }
+          updateThemeButtons(theme);
+        };
+
+        const preferredTheme =
+          storedTheme === "light" || storedTheme === "dark"
+            ? storedTheme
+            : themePreference.matches
+              ? "dark"
+              : "light";
+
+        setTheme(preferredTheme);
+
+        themePreference.addEventListener("change", (event) => {
+          if (storedTheme === "light" || storedTheme === "dark") return;
+          setTheme(event.matches ? "dark" : "light");
+        });
+
+        const canReveal =
+          "IntersectionObserver" in window &&
+          !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        if (canReveal) root.classList.add("can-reveal");
+
+        window.addEventListener("DOMContentLoaded", () => {
+          updateThemeButtons(root.dataset.theme || preferredTheme);
+          document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+            button.addEventListener("click", () => {
+              setTheme(root.dataset.theme === "dark" ? "light" : "dark", true);
+            });
+          });
+
+          if (!canReveal) return;
+
+          const revealObserver = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add("is-visible");
+                revealObserver.unobserve(entry.target);
+              });
+            },
+            // Fire as soon as any part of the block enters, and reach 10%
+            // past the bottom edge so a section sitting just under the fold has
+            // already faded in by the time it is scrolled to. A percentage
+            // threshold would hold tall sections back until a large slice of
+            // them was on screen, which reads as content failing to load.
+            { threshold: 0, rootMargin: "0px 0px 10% 0px" },
+          );
+
+          document.querySelectorAll(".reveal").forEach((element) => revealObserver.observe(element));
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <slot />
+    {BuyButton && <BuyButton />}
+  </body>
+</html>

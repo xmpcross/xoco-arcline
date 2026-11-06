@@ -1,0 +1,28 @@
+---
+import { categorySlug, type Category } from "@/lib/posts";
+
+interface Props {
+  category: Category;
+  /**
+   * `overlay` brings its own translucent veil for sitting on cover photography,
+   * `plain` is the default grey chip for paper, and `solid` is the black pill
+   * used where a chip has to carry weight of its own.
+   */
+  variant?: "overlay" | "plain" | "solid";
+  class?: string;
+}
+
+const { category, variant = "overlay", class: className = "" } = Astro.props;
+---
+
+<a
+  class:list={[
+    "chip",
+    variant === "overlay" && "chip--overlay",
+    variant === "solid" && "chip--solid",
+    className,
+  ]}
+  href={`/category/${categorySlug(category)}/`}
+>
+  {category}
+</a>

@@ -1,0 +1,31 @@
+---
+import SubscribeForm from "@/components/SubscribeForm.astro";
+import { siteConfig } from "@/config/site";
+
+/** White card that closes a page with the membership ask. */
+interface Props {
+  title?: string;
+  description?: string;
+  id?: string;
+}
+
+const {
+  title = siteConfig.newsletter.title,
+  description = siteConfig.newsletter.description,
+  id = "subscribe",
+} = Astro.props;
+
+const headingId = `${id}-title`;
+---
+
+<section class="container section-bottom" id={id} aria-labelledby={headingId}>
+  <div class="surface cta reveal">
+    <div class="cta__content">
+      <h2 class="txt-h1" id={headingId}>{title}</h2>
+      <p class="txt-lead txt-dim">{description}</p>
+    </div>
+    <div class="cta__form">
+      <SubscribeForm id={`${id}-email`} onSurface showTerms={false} />
+    </div>
+  </div>
+</section>

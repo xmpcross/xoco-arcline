@@ -1,0 +1,38 @@
+---
+import Icon from "@/components/ui/Icon.astro";
+
+interface Props {
+  title: string;
+  href?: string;
+  linkLabel?: string;
+  /** Rendered as the section's labelling element, so pass the aria-labelledby id. */
+  id?: string;
+  headingLevel?: "h2" | "h3";
+  class?: string;
+}
+
+const {
+  title,
+  href,
+  linkLabel = "View all",
+  id,
+  headingLevel = "h2",
+  class: className = "",
+} = Astro.props;
+
+const Heading = headingLevel;
+---
+
+<div class:list={["section-head", className]}>
+  <Heading class="section-title" id={id}>{title}</Heading>
+  {
+    href ? (
+      <a class="section-more" href={href}>
+        {linkLabel}
+        <Icon name="arrow-right" size={14} />
+      </a>
+    ) : (
+      <slot />
+    )
+  }
+</div>

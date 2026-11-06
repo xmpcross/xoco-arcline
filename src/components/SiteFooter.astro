@@ -1,0 +1,64 @@
+---
+import LocalIcon from "@/components/LocalIcon.astro";
+import { footerNavigation, siteConfig } from "@/config/site";
+import { socialIconFor } from "@/lib/socials";
+
+const currentYear = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <hr class="rule" />
+    <div class="site-footer__inner">
+      <a href="/" class="wordmark" aria-label={`${siteConfig.name} home`}>
+        {siteConfig.name}<span class="wordmark__dot" aria-hidden="true">.</span>
+      </a>
+      <p class="txt-body txt-dim site-footer__tagline">{siteConfig.tagline}</p>
+
+      <nav aria-label="Footer">
+        <ul class="site-footer__nav hover-fade-group">
+          {
+            footerNavigation.map((link) => (
+              <li>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      <ul class="site-footer__socials hover-fade-group">
+        {
+          siteConfig.socials.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class="site-footer__social"
+                aria-label={item.label}
+                rel={item.href.startsWith("http") ? "noreferrer" : undefined}
+              >
+                <LocalIcon name={socialIconFor(item.label)} className="h-5 w-5" />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+
+      <p class="txt-s txt-dim">
+        &copy; {currentYear} {siteConfig.name}. Built with <a class="underline-hover" href="https://astro.build" rel="noreferrer">Astro</a>.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer .rule {
+    margin-bottom: 2rem;
+  }
+
+  @media (min-width: 64rem) {
+    .site-footer .rule {
+      margin-bottom: 3rem;
+    }
+  }
+</style>

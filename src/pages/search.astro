@@ -1,0 +1,155 @@
+---
+import { getCollection } from "astro:content";
+import PageHeader from "@/components/PageHeader.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import Icon from "@/components/ui/Icon.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+import { authorSlug, formatDate, postHref, visiblePosts } from "@/lib/posts";
+
+const allPosts = visiblePosts(await getCollection("posts"));
+const searchItems = allPosts.map((post) => ({
+  title: post.data.title,
+  excerpt: post.data.excerpt,
+  href: postHref(post),
+  category: post.data.category,
+  author: post.data.author.name,
+  authorHref: `/author/${authorSlug(post.data.author.name)}/`,
+  tags: post.data.tags,
+  date: formatDate(post.data.date),
+}));
+---
+
+<BaseLayout
+  title="Search"
+  description={`Search ${siteConfig.name} articles by title, hotel, tag, or author.`}
+  noindex
+>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <div class="container">
+      <PageHeader title={`Search ${siteConfig.name}`}>
+        <form class="search-page__form" role="search" aria-label="Article search" action="/search/" method="get">
+          <label class="sr-only" for="search-page-input">Search articles</label>
+          <div class="field field--surface">
+            <Icon name="search" class="search-page__icon" size={18} />
+            <input
+              id="search-page-input"
+              class="field__input"
+              name="q"
+              type="search"
+              placeholder="Search articles, hotels, tags..."
+              autocomplete="off"
+              data-search-page-input
+            />
+            <button type="submit" class="btn">Search</button>
+          </div>
+        </form>
+      </PageHeader>
+    </div>
+
+    <section class="container section-bottom">
+      <p class="txt-s txt-dim" data-search-page-summary>Type to search {searchItems.length} posts.</p>
+      <div class="search-page__results" data-search-page-results></div>
+    </section>
+  </main>
+  <SiteFooter />
+
+  <script is:inline type="application/json" id="search-page-data" set:html={JSON.stringify(searchItems)} />
+  <script is:inline>
+    (() => {
+      const input = document.querySelector("[data-search-page-input]");
+      const results = document.querySelector("[data-search-page-results]");
+      const summary = document.querySelector("[data-search-page-summary]");
+      const data = JSON.parse(document.getElementById("search-page-data")?.textContent || "[]");
+
+      const escapeHtml = (value) =>
+        String(value).replace(
+          /[&<>"']/g,
+          (character) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[character],
+        );
+
+      const matchesQuery = (item, query) =>
+        [item.title, item.excerpt, item.category, item.author, ...(item.tags || [])]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      const render = () => {
+        if (!input || !results || !summary) return;
+
+        const query = input.value.trim().toLowerCase();
+        const matches = query ? data.filter((item) => matchesQuery(item, query)) : [];
+
+        summary.textContent = query
+          ? `${matches.length} ${matches.length === 1 ? "result" : "results"} for "${input.value.trim()}".`
+          : `Type to search ${data.length} posts.`;
+
+        results.innerHTML = matches
+          .map(
+            (item) => `
+          <article class="surface search-page__card">
+            <p class="txt-eyebrow">${escapeHtml(item.category)}</p>
+            <h2 class="txt-h3"><a class="underline-hover" href="${escapeHtml(item.href)}">${escapeHtml(item.title)}</a></h2>
+            <p class="txt-s txt-dim line-clamp-2">${escapeHtml(item.excerpt)}</p>
+            <p class="txt-cap txt-dim">
+              <a class="underline-hover" href="${escapeHtml(item.authorHref)}">${escapeHtml(item.author)}</a>
+              &middot; ${escapeHtml(item.date)}
+            </p>
+          </article>
+        `,
+          )
+          .join("");
+      };
+
+      if (input) {
+        const params = new URLSearchParams(window.location.search);
+        input.value = params.get("q") || "";
+        render();
+        input.addEventListener("input", render);
+      }
+    })();
+  </script>
+
+  <style>
+    .search-page__form {
+      width: 100%;
+      max-width: 32rem;
+      margin-top: 0.5rem;
+    }
+
+    /* `:global` is required: Icon renders the svg, so it never receives this
+       page's scoping attribute. */
+    .search-page__form :global(.search-page__icon) {
+      flex-shrink: 0;
+      margin-right: 0.75rem;
+      color: var(--ink-dim);
+    }
+
+    .search-page__results {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (min-width: 48rem) {
+      .search-page__results {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .search-page__results :global(.search-page__card) {
+      display: grid;
+      gap: 0.5rem;
+      padding: 1.5rem;
+    }
+  </style>
+</BaseLayout>

@@ -1,0 +1,79 @@
+---
+import { getCollection } from "astro:content";
+import type { GetStaticPaths, Page } from "astro";
+import PageHeader from "@/components/PageHeader.astro";
+import Pagination from "@/components/Pagination.astro";
+import PostCard from "@/components/PostCard.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SubscribeBand from "@/components/SubscribeBand.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+import { getAllTags, tagSlug, visiblePosts, withTrailingSlash, type Post } from "@/lib/posts";
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const allPosts = visiblePosts(await getCollection("posts"));
+
+  return getAllTags(allPosts).flatMap((tag) => {
+    const slug = tagSlug(tag);
+    const posts = allPosts.filter((post) => post.data.tags.some((item) => tagSlug(item) === slug));
+
+    return paginate(posts, {
+      pageSize: 12,
+      params: { tag: slug },
+      props: { tag, allPosts },
+    });
+  });
+}) satisfies GetStaticPaths;
+
+interface Props {
+  tag: string;
+  allPosts: Post[];
+  page: Page<Post>;
+}
+
+const { tag, allPosts, page } = Astro.props;
+const title = page.currentPage === 1 ? `${tag} posts` : `${tag} posts - Page ${page.currentPage}`;
+const prevUrl = withTrailingSlash(page.url.prev);
+const nextUrl = withTrailingSlash(page.url.next);
+const meta = [
+  `${page.total} ${page.total === 1 ? "post" : "posts"} tagged ${tag}`,
+  page.lastPage > 1 ? `Page ${page.currentPage} of ${page.lastPage}` : null,
+]
+  .filter(Boolean)
+  .join(" · ");
+---
+
+<BaseLayout
+  title={title}
+  description={`Posts tagged ${tag} on ${siteConfig.name}.`}
+  prevUrl={prevUrl}
+  nextUrl={nextUrl}
+>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <div class="container">
+      <PageHeader title={tag} meta={meta} />
+    </div>
+
+    <section class="container section-bottom">
+      <div class="grid-cards grid-cards--3">
+        {
+          page.data.map((post, index) => (
+            <PostCard post={post} headingLevel="h2" eager={index < 3} />
+          ))
+        }
+      </div>
+      <Pagination
+        prevUrl={prevUrl}
+        nextUrl={nextUrl}
+        currentPage={page.currentPage}
+        lastPage={page.lastPage}
+        label={`${tag} pagination`}
+      />
+    </section>
+
+    <SubscribeBand id="tag-subscribe" />
+  </main>
+  <SiteFooter />
+</BaseLayout>

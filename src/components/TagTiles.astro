@@ -1,0 +1,53 @@
+---
+import { Image } from "astro:assets";
+import SectionHead from "@/components/SectionHead.astro";
+import type { Post } from "@/lib/posts";
+
+/**
+ * Square tiles for the most-used tags. The pill carries the label, so the
+ * photograph underneath is decorative and never has to hold legible type on
+ * its own.
+ */
+interface Props {
+  tags: { slug: string; label: string; count: number; cover: Post["data"]["cover"] }[];
+  title?: string;
+  id?: string;
+}
+
+const { tags, title = "Popular tags", id = "popular-tags" } = Astro.props;
+---
+
+{
+  tags.length > 0 && (
+    <section class="container section-bottom reveal" aria-labelledby={id}>
+      <SectionHead title={title} id={id} />
+      <ul class="tag-tiles">
+        {tags.map((tag) => (
+          <li>
+            <a class="tag-tile zoom-host" href={`/tag/${tag.slug}/`}>
+              <div class="media media--square">
+                <Image
+                  src={tag.cover.src}
+                  alt=""
+                  widths={[240, 360, 480]}
+                  sizes="(min-width: 64rem) 15rem, (min-width: 40rem) 30vw, 45vw"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <span class="tag-tile__overlay">
+                <span class="tag-tile__pill">
+                  {tag.label}
+                  <span class="tag-tile__count">
+                    {tag.count}
+                    <span class="sr-only"> posts</span>
+                  </span>
+                </span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

@@ -1,0 +1,23 @@
+---
+import { authorSlug, categorySlug, type Post } from "@/lib/posts";
+
+/**
+ * The inline byline used on every card: the author, a hairline divider, then the
+ * post's category. Tags are deliberately left out — they belong on the article
+ * itself, where there is room to list them in full, rather than competing with
+ * the title in a card that is already two lines deep.
+ */
+interface Props {
+  post: Post;
+  class?: string;
+}
+
+const { post, class: className = "" } = Astro.props;
+const { author, category } = post.data;
+---
+
+<div class:list={["meta", className]}>
+  <a class="meta__byline" href={`/author/${authorSlug(author.name)}/`}>by {author.name}</a>
+  <span class="meta__divider" aria-hidden="true"></span>
+  <a class="meta__byline" href={`/category/${categorySlug(category)}/`}>{category}</a>
+</div>

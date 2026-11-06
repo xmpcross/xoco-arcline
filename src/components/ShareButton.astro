@@ -1,0 +1,190 @@
+---
+import LocalIcon from "@/components/LocalIcon.astro";
+import Icon from "@/components/ui/Icon.astro";
+
+/**
+ * One control in the sidebar that opens a small dialog of channels. A native
+ * `<dialog>` is doing the work, so focus trapping, Escape, and the backdrop come
+ * from the platform rather than another hand-rolled modal.
+ *
+ * Every channel is a plain link to that network's own share endpoint — no
+ * third-party script, no tracking pixel, nothing to load before the page is
+ * interactive. To add one (Pinterest, WhatsApp, Reddit), drop its mark into
+ * `src/icons/bootstrap`, register it in `LocalIcon.astro`, and add an entry to
+ * `channels` below.
+ */
+interface Props {
+  title: string;
+  url: string;
+  /** Unique per page: it is the dialog's id and the trigger's `aria-controls`. */
+  id?: string;
+  label?: string;
+}
+
+const { title, url, id = "share-dialog", label = "Share" } = Astro.props;
+const titleId = `${id}-title`;
+const linkId = `${id}-link`;
+
+const encodedUrl = encodeURIComponent(url);
+const encodedTitle = encodeURIComponent(title);
+
+const channels = [
+  {
+    label: "X",
+    icon: "twitter-x" as const,
+    href: `https://x.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`,
+  },
+  {
+    label: "Facebook",
+    icon: "facebook" as const,
+    href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+  },
+  {
+    label: "LinkedIn",
+    icon: "linkedin" as const,
+    href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+  },
+];
+
+const mailtoHref = `mailto:?subject=${encodedTitle}&body=${encodedTitle}%0A%0A${encodedUrl}`;
+---
+
+<div class="share">
+  <button
+    type="button"
+    class="share__btn"
+    data-share-open
+    aria-haspopup="dialog"
+    aria-controls={id}
+  >
+    <Icon name="share" size={16} />
+    {label}
+  </button>
+</div>
+
+<dialog id={id} class="share-dialog" aria-labelledby={titleId} data-share-dialog>
+  <div class="share-panel">
+    <div class="share-panel__head">
+      <h2 class="txt-h4" id={titleId}>Share this post</h2>
+      <button type="button" class="icon-btn" data-share-close aria-label="Close share options">
+        <Icon name="close" size={18} />
+      </button>
+    </div>
+
+    <ul class="share-menu">
+      {
+        channels.map((channel) => (
+          <li>
+            <a class="share-menu__item" href={channel.href} target="_blank" rel="noreferrer">
+              <LocalIcon name={channel.icon} className="h-4 w-4" />
+              {channel.label}
+            </a>
+          </li>
+        ))
+      }
+      <li>
+        <a class="share-menu__item" href={mailtoHref}>
+          <Icon name="envelope" size={16} />
+          Email
+        </a>
+      </li>
+      {/* Hidden until the script confirms the browser has a share sheet to open —
+          on a phone that is where WhatsApp, Messages, and the rest live. */}
+      <li hidden data-share-native>
+        <button type="button" class="share-menu__item" data-share-native-btn>
+          <Icon name="share" size={16} />
+          More apps
+        </button>
+      </li>
+    </ul>
+
+    <div class="share-copy">
+      <label class="sr-only" for={linkId}>Post link</label>
+      {/* Plain `.field` on purpose: the panel is already a white card, so the
+          pill takes the page colour to read as an inset. */}
+      <div class="field">
+        <input id={linkId} class="field__input" type="text" value={url} readonly data-share-url />
+        <button type="button" class="btn" data-share-copy>Copy</button>
+      </div>
+      <p class="form-note" aria-live="polite" data-share-status></p>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  document.querySelectorAll<HTMLDialogElement>("[data-share-dialog]").forEach((dialog) => {
+    const opener = document.querySelector<HTMLButtonElement>(
+      `[data-share-open][aria-controls="${dialog.id}"]`,
+    );
+    // Same bar the search palette sets: without `showModal` there is no modal to
+    // open, and a non-modal dialog would render inline in the sidebar.
+    if (!opener || typeof dialog.showModal !== "function") return;
+
+    const status = dialog.querySelector<HTMLElement>("[data-share-status]");
+    const field = dialog.querySelector<HTMLInputElement>("[data-share-url]");
+    const copyButton = dialog.querySelector<HTMLButtonElement>("[data-share-copy]");
+    const nativeItem = dialog.querySelector<HTMLElement>("[data-share-native]");
+    const nativeButton = dialog.querySelector<HTMLButtonElement>("[data-share-native-btn]");
+    const url = field?.value ?? "";
+    const title = document.title;
+
+    const report = (message: string) => {
+      if (status) status.textContent = message;
+    };
+
+    const open = () => {
+      report("");
+      dialog.showModal();
+      document.documentElement.classList.add("has-open-sheet");
+    };
+
+    opener.addEventListener("click", open);
+
+    dialog.querySelector("[data-share-close]")?.addEventListener("click", () => dialog.close());
+
+    // The panel is a child of the dialog, so a click landing on the dialog itself
+    // is a click on the backdrop area around it.
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+
+    dialog.addEventListener("close", () => {
+      document.documentElement.classList.remove("has-open-sheet");
+      opener.focus();
+    });
+
+    // Every network link opens in its own tab; the dialog has done its job.
+    dialog.querySelectorAll("a[href]").forEach((link) => {
+      link.addEventListener("click", () => dialog.close());
+    });
+
+    copyButton?.addEventListener("click", async () => {
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+        await navigator.clipboard.writeText(url);
+        report("Link copied to your clipboard.");
+      } catch {
+        // No clipboard access: select the field so the reader can copy it by hand
+        // rather than being told it simply failed.
+        field?.select();
+        report("Press Ctrl/Cmd + C to copy the selected link.");
+      }
+    });
+
+    if (navigator.share && nativeItem && nativeButton) {
+      nativeItem.hidden = false;
+
+      nativeButton.addEventListener("click", async () => {
+        try {
+          await navigator.share({ title, url });
+          dialog.close();
+        } catch (error) {
+          // Dismissing the sheet rejects with AbortError. That is a decision, not
+          // a failure, so the dialog stays open and says nothing.
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          report("Sharing was not available. Copy the link instead.");
+        }
+      });
+    }
+  });
+</script>

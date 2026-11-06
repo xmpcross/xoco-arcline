@@ -1,0 +1,210 @@
+---
+import { Image } from "astro:assets";
+import { getCollection, render } from "astro:content";
+import PostCard from "@/components/PostCard.astro";
+import SectionHead from "@/components/SectionHead.astro";
+import ShareButton from "@/components/ShareButton.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SubscribeBand from "@/components/SubscribeBand.astro";
+import TableOfContents from "@/components/TableOfContents.astro";
+import Avatar from "@/components/ui/Avatar.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+import {
+  authorSlug,
+  formatDate,
+  getRelated,
+  postSlug,
+  readMinutes,
+  tagSlug,
+  visiblePosts,
+  type Post,
+} from "@/lib/posts";
+
+export async function getStaticPaths() {
+  const allPosts = visiblePosts(await getCollection("posts"));
+  return allPosts.map((post) => ({
+    params: { slug: postSlug(post) },
+    props: { post, allPosts },
+  }));
+}
+
+interface Props {
+  post: Post;
+  allPosts: Post[];
+}
+
+const { post, allPosts } = Astro.props;
+const { Content, headings } = await render(post);
+const related = getRelated(allPosts, post, 4);
+const data = post.data;
+/** Posts can opt out of the cover image and run as a text-only document. */
+const showCover = data.cover.showInPost ?? true;
+const authorHref = `/author/${authorSlug(data.author.name)}/`;
+const articleUrl = new URL(`/post/${postSlug(post)}/`, siteConfig.siteUrl).toString();
+const absoluteImageUrl = new URL(data.cover.src.src, siteConfig.siteUrl).toString();
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: data.title,
+  description: data.excerpt,
+  image: absoluteImageUrl,
+  datePublished: data.date.toISOString(),
+  dateModified: (data.updatedDate ?? data.date).toISOString(),
+  author: { "@type": "Person", name: data.author.name },
+  publisher: { "@type": "Organization", name: siteConfig.authorName },
+  mainEntityOfPage: articleUrl,
+};
+---
+
+<BaseLayout
+  title={data.title}
+  description={data.excerpt}
+  image={absoluteImageUrl}
+  type="article"
+  structuredData={structuredData}
+>
+  <SiteHeader posts={allPosts} />
+
+  <main id="content">
+    <article class:list={["container post", !showCover && "post--flush"]}>
+      {
+        showCover && (
+          <figure class="post-figure">
+            <div class="media">
+              <Image
+                src={data.cover.src}
+                alt={data.cover.alt}
+                widths={[640, 960, 1280, 1600, 2000]}
+                sizes="(min-width: 85rem) 80rem, calc(100vw - 5rem)"
+                loading="eager"
+                fetchpriority="high"
+                decoding="async"
+              />
+            </div>
+            <figcaption class="post-figure__credit">
+              Photo by{" "}
+              <a href={data.cover.creditUrl} rel="noreferrer">
+                {data.cover.creditName}
+              </a>
+            </figcaption>
+          </figure>
+        )
+      }
+
+      <div class="post-layout">
+        <aside class="post-aside" aria-label="Article information">
+          <div class="post-aside__inner">
+            <div class="post-byline">
+              <Avatar name={data.author.name} size="md" />
+              <div>
+                <p class="post-byline__name">
+                  by <a class="underline-hover" href={authorHref}>{data.author.name}</a>
+                </p>
+                <p class="post-byline__facts">
+                  <time datetime={data.date.toISOString()}>{formatDate(data.date)}</time>
+                  <span class="meta__dot" aria-hidden="true"></span>
+                  <span>{readMinutes(post)} min read</span>
+                </p>
+              </div>
+            </div>
+
+            <TableOfContents headings={headings} />
+
+            {
+              data.tags.length > 0 && (
+                <div class="post-tags">
+                  <p class="txt-eyebrow">Tags</p>
+                  <ul class="chip-row">
+                    {data.tags.map((tag) => (
+                      <li>
+                        <a class="chip chip--solid" href={`/tag/${tagSlug(tag)}/`}>
+                          {tag}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            }
+
+            <ShareButton title={data.title} url={articleUrl} />
+          </div>
+        </aside>
+
+        <div class="post-main">
+          <header class="post-header">
+            <h1 class="txt-h1">{data.title}</h1>
+            <p class="txt-lead txt-dim">{data.excerpt}</p>
+          </header>
+
+          <div class="prose">
+            <Content />
+          </div>
+
+          {
+            data.updatedDate && (
+              <p class="txt-s txt-dim post-updated">
+                Updated{" "}
+                <time datetime={data.updatedDate.toISOString()}>
+                  {formatDate(data.updatedDate, "long")}
+                </time>
+              </p>
+            )
+          }
+
+        </div>
+      </div>
+    </article>
+
+    {
+      related.length > 0 && (
+        <section class="container section-bottom" aria-labelledby="post-related">
+          <SectionHead title="Related posts" href="/posts/" linkLabel="All posts" id="post-related" />
+          <div class="grid-cards grid-cards--4 grid-cards--tight">
+            {related.map((item) => (
+              <PostCard post={item} showMeta={false} imageSize="related" class="card--related" />
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <SubscribeBand id="post-subscribe" />
+  </main>
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .post {
+    display: grid;
+    gap: 2.5rem;
+    padding-bottom: var(--section-gap);
+  }
+
+  /* Without a cover the article would start hard against the header, so the
+     space the figure was providing is given back as padding. */
+  .post--flush {
+    padding-top: 1.5rem;
+  }
+
+  @media (min-width: 64rem) {
+    .post {
+      gap: 4rem;
+    }
+
+    .post--flush {
+      padding-top: 3rem;
+    }
+  }
+
+  .post-tags {
+    display: grid;
+    gap: 0.625rem;
+  }
+
+  .post-updated {
+    margin-top: 2rem;
+  }
+</style>

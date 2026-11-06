@@ -1,0 +1,86 @@
+---
+import { getCollection } from "astro:content";
+import PageHeader from "@/components/PageHeader.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import Avatar from "@/components/ui/Avatar.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+import { getAllAuthors, visiblePosts } from "@/lib/posts";
+
+const allPosts = visiblePosts(await getCollection("posts"));
+const authors = getAllAuthors(allPosts);
+---
+
+<BaseLayout
+  title="Authors"
+  description={`Browse ${siteConfig.name} authors and their latest articles.`}
+>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <div class="container">
+      <PageHeader
+        title="Authors"
+        description={`The writers behind ${siteConfig.name}: the people who inspect suites, book tables, test service, and file the pieces.`}
+        meta={`${authors.length} ${authors.length === 1 ? "author" : "authors"}`}
+      />
+    </div>
+
+    <section class="container section-bottom">
+      <div class="authors-grid hover-fade-group">
+        {
+          authors.map((author) => (
+            <a class="surface author-card" href={`/author/${author.slug}/`}>
+              <Avatar name={author.name} size="lg" />
+              <span class="author-card__body">
+                <span class="txt-h3">{author.name}</span>
+                <span class="txt-s txt-dim">{author.role}</span>
+                <span class="txt-cap txt-dim author-card__count">
+                  {author.posts.length} {author.posts.length === 1 ? "post" : "posts"}
+                </span>
+              </span>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+  </main>
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .authors-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  @media (min-width: 40rem) {
+    .authors-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .authors-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .author-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+  }
+
+  .author-card__body {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .author-card__count {
+    margin-top: 0.35rem;
+  }
+</style>

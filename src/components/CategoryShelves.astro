@@ -1,0 +1,54 @@
+---
+import { Image } from "astro:assets";
+import SectionHead from "@/components/SectionHead.astro";
+import type { getCategoryShelves } from "@/lib/posts";
+
+/**
+ * The category row: one card per section of the site, sitting a level above the
+ * tag tiles. The name and count carry the meaning, so the cover underneath is
+ * decorative and the description does the persuading.
+ */
+interface Props {
+  shelves: ReturnType<typeof getCategoryShelves>;
+  title?: string;
+  id?: string;
+}
+
+const { shelves, title = "Browse by category", id = "home-categories" } = Astro.props;
+---
+
+{
+  shelves.length > 0 && (
+    <section class="container section-bottom reveal" aria-labelledby={id}>
+      <SectionHead title={title} id={id} />
+      <ul class="shelves">
+        {shelves.map((shelf) => (
+          <li>
+            <a class="shelf zoom-host" href={`/category/${shelf.slug}/`}>
+              <div class="media media--card">
+                <Image
+                  src={shelf.cover.src}
+                  alt=""
+                  widths={[320, 480, 640, 960]}
+                  sizes="(min-width: 64rem) 25rem, (min-width: 40rem) 45vw, calc(100vw - 2.5rem)"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <div class="shelf__body">
+                <h3 class="shelf__title txt-h3">
+                  {shelf.category}
+                  <span class="shelf__count">
+                    {shelf.count}
+                    <span class="sr-only"> posts</span>
+                  </span>
+                </h3>
+                <p class="txt-s txt-dim line-clamp-2">{shelf.description}</p>
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

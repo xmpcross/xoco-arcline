@@ -1,0 +1,94 @@
+---
+import type { MarkdownHeading } from "astro";
+
+/**
+ * Article contents, built from the second-level headings Astro extracts while
+ * rendering the post. Renders nothing when a post has no sections, so short
+ * pieces do not carry an empty label.
+ */
+interface Props {
+  headings: MarkdownHeading[];
+  label?: string;
+}
+
+const { headings, label = "Post contents" } = Astro.props;
+const sections = headings.filter((heading) => heading.depth === 2 && heading.slug);
+---
+
+{
+  sections.length > 1 && (
+    <nav class="toc" aria-labelledby="toc-label" data-toc>
+      <p class="txt-eyebrow" id="toc-label">
+        {label}
+      </p>
+      <ul class="toc__list">
+        {/* Rides the rail, sized and positioned from the current link. */}
+        <li class="toc__marker" aria-hidden="true" data-toc-marker />
+        {sections.map((heading) => (
+          <li>
+            <a class="toc__link" href={`#${heading.slug}`} data-toc-link>
+              {heading.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+<script>
+  const toc = document.querySelector<HTMLElement>("[data-toc]");
+
+  if (toc && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const links = Array.from(toc.querySelectorAll<HTMLAnchorElement>("[data-toc-link]"));
+    const marker = toc.querySelector<HTMLElement>("[data-toc-marker]");
+    const sections = links
+      .map((link) => document.getElementById(decodeURIComponent(link.hash.slice(1))))
+      .filter((section): section is HTMLElement => Boolean(section));
+
+    if (sections.length > 0) {
+      // The marker is measured off the live link rather than assuming a fixed
+      // row height, so a heading that wraps to two lines still gets a segment
+      // the length of its own entry.
+      const moveMarker = (link: HTMLAnchorElement) => {
+        if (!marker) return;
+        marker.style.setProperty("--toc-marker-top", `${link.offsetTop}px`);
+        marker.style.setProperty("--toc-marker-height", `${link.offsetHeight}px`);
+        toc.dataset.tocActive = "";
+      };
+
+      const markCurrent = (id: string) => {
+        links.forEach((link) => {
+          const isCurrent = decodeURIComponent(link.hash.slice(1)) === id;
+          if (isCurrent) {
+            link.setAttribute("aria-current", "location");
+            moveMarker(link);
+          } else {
+            link.removeAttribute("aria-current");
+          }
+        });
+      };
+
+      // Re-measure on resize: the entries rewrap at narrow widths, which moves
+      // every offset the marker was placed from.
+      window.addEventListener("resize", () => {
+        const current = links.find((link) => link.hasAttribute("aria-current"));
+        if (current) moveMarker(current);
+      });
+
+      // The band across the upper third of the viewport decides what counts as
+      // "here", so a heading marks itself as soon as it settles under the top
+      // edge rather than when the whole section is on screen.
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries.filter((entry) => entry.isIntersecting);
+          if (visible.length === 0) return;
+          markCurrent(visible[0]!.target.id);
+        },
+        { rootMargin: "-10% 0px -70% 0px", threshold: 0 },
+      );
+
+      sections.forEach((section) => observer.observe(section));
+    }
+  }
+</script>

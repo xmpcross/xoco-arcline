@@ -1,0 +1,66 @@
+---
+import { getCollection } from "astro:content";
+import PageHeader from "@/components/PageHeader.astro";
+import Pagination from "@/components/Pagination.astro";
+import PostCard from "@/components/PostCard.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SubscribeBand from "@/components/SubscribeBand.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+import { visiblePosts, withTrailingSlash, type Post } from "@/lib/posts";
+import type { GetStaticPaths, Page } from "astro";
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const posts = visiblePosts(await getCollection("posts"));
+  return paginate(posts, { pageSize: 12 });
+}) satisfies GetStaticPaths;
+
+interface Props {
+  page: Page<Post>;
+}
+
+const { page } = Astro.props;
+const allPosts = visiblePosts(await getCollection("posts"));
+const title = page.currentPage === 1 ? "All posts" : `All posts - Page ${page.currentPage}`;
+const prevUrl = withTrailingSlash(page.url.prev);
+const nextUrl = withTrailingSlash(page.url.next);
+---
+
+<BaseLayout
+  title={title}
+  description={siteConfig.description}
+  prevUrl={prevUrl}
+  nextUrl={nextUrl}
+>
+  <SiteHeader posts={allPosts} />
+  <main id="content">
+    <div class="container">
+      <PageHeader
+        title="All posts"
+        description={siteConfig.bio}
+        meta={`Page ${page.currentPage} of ${page.lastPage} · ${page.total} ${page.total === 1 ? "post" : "posts"}`}
+      />
+    </div>
+
+    <section class="container section-bottom">
+      <div class="grid-cards grid-cards--3">
+        {
+          page.data.map((post, index) => (
+            <PostCard post={post} headingLevel="h2" eager={index < 3} />
+          ))
+        }
+      </div>
+      <Pagination
+        prevUrl={prevUrl}
+        nextUrl={nextUrl}
+        currentPage={page.currentPage}
+        lastPage={page.lastPage}
+        label="All posts pagination"
+      />
+    </section>
+
+    <SubscribeBand id="archive-subscribe" />
+  </main>
+  <SiteFooter />
+</BaseLayout>
